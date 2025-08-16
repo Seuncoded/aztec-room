@@ -167,6 +167,7 @@ body{
   border-color:#f6b2ff;
   box-shadow:0 14px 26px color-mix(in srgb, var(--c-validators) 40%, transparent);
 }
+.pill::after { pointer-events: none; }  /* allow clicks through the overlay */
 .pill[data-room="helpdesk"].active{
   background:linear-gradient(180deg, var(--c-helpdesk), #3b82f6);
   border-color:#bcd9ff;

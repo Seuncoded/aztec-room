@@ -1,19 +1,14 @@
 // pages/index.js
 import { useEffect, useRef, useState } from "react";
 
-// Single source of truth for labels shown in UI
-const ROOMS = ["General", "Validators", "Helpdesk", "18+"];
+// One source of truth
+const ROOMS = [
+  { id: "general",    label: "General" },
+  { id: "validators", label: "Validators" },
+  { id: "helpdesk",   label: "Helpdesk" },
+  { id: "18plus",     label: "18+" },
+];
 
-// Map UI label -> API room key
-const apiRoom = (label) => (label === "18+" ? "18+" : label.toLowerCase());
-
-// Map UI label -> CSS data-room value (for your pill/chatHead color hooks)
-const dataRoom = (label) => (label === "18+" ? "18plus" : label.toLowerCase());
-
-// Labels are already nice
-const niceLabel = (label) => label;
-
-// Deterministic color for handles
 const colorFromHandle = (handle = "") => {
   let hash = 0;
   for (let i = 0; i < handle.length; i++) hash = handle.charCodeAt(i) + ((hash << 5) - hash);
@@ -22,8 +17,8 @@ const colorFromHandle = (handle = "") => {
 };
 
 export default function AztecRoom() {
-  // Store the UI label directly in state (must match ROOMS items)
-  const [room, setRoom] = useState(ROOMS[0]); // "General" on load
+  // store the **id** (e.g., "validators", "18plus")
+  const [roomId, setRoomId] = useState(ROOMS[0].id);
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -31,7 +26,8 @@ export default function AztecRoom() {
   const scrollerRef = useRef(null);
   const pollRef = useRef(null);
 
-  // Generate session only in browser
+  const currentRoom = ROOMS.find(r => r.id === roomId) ?? ROOMS[0];
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     let s = window.sessionStorage.getItem("azr-session");
@@ -44,11 +40,9 @@ export default function AztecRoom() {
     setSession(s);
   }, []);
 
-  // Fetch messages for current room (convert UI label -> API key)
-  const fetchRoom = async (label) => {
+  const fetchRoom = async (id) => {
     try {
-      const r = apiRoom(label);
-      const q = new URLSearchParams({ room: r, limit: "100" });
+      const q = new URLSearchParams({ room: id, limit: "100" });
       const res = await fetch(`/api/messages?${q.toString()}`, { cache: "no-store" });
       const j = await res.json();
       if (res.ok && j.items) {
@@ -62,14 +56,13 @@ export default function AztecRoom() {
     }
   };
 
-  // Room change → load + poll
   useEffect(() => {
-    if (!room) return;
-    fetchRoom(room);
+    if (!roomId) return;
+    fetchRoom(roomId);
     clearInterval(pollRef.current);
-    pollRef.current = setInterval(() => fetchRoom(room), 2500);
+    pollRef.current = setInterval(() => fetchRoom(roomId), 2500);
     return () => clearInterval(pollRef.current);
-  }, [room]);
+  }, [roomId]);
 
   const onSend = async () => {
     const t = text.trim();
@@ -79,16 +72,14 @@ export default function AztecRoom() {
       const res = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type":"application/json" },
-        // Convert UI label -> API key here too
-        body: JSON.stringify({ room: apiRoom(room), text: t, handle: session })
+        body: JSON.stringify({ room: roomId, text: t, handle: session })
       });
       const j = await res.json();
       if (!res.ok) {
         alert(JSON.stringify(j));
       } else {
         setText("");
-        // Optimistic append
-        setMessages((prev) => [...prev, j.item]);
+        setMessages((prev)=> [...prev, j.item]);
         requestAnimationFrame(() => {
           scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
         });
@@ -121,14 +112,15 @@ export default function AztecRoom() {
       {/* Rooms */}
       <div className="rooms">
         <div className="pills">
-          {ROOMS.map((label) => (
+          {ROOMS.map(({ id, label }) => (
             <button
-              key={label}
-              className={`pill ${label === room ? "active" : ""}`}
-              data-room={dataRoom(label)}     // hooks your CSS colors (e.g. 18plus)
-              onClick={() => setRoom(label)}  // state stores the UI label
+              key={id}
+              type="button"
+              className={`pill ${roomId === id ? "active" : ""}`}
+              data-room={id}                 // matches your CSS hooks (use "18plus" here)
+              onClick={() => setRoomId(id)}  // store id only
             >
-              {niceLabel(label)}
+              {label}
             </button>
           ))}
         </div>
@@ -137,16 +129,16 @@ export default function AztecRoom() {
       {/* Chat */}
       <div className="panel">
         <div className="chat">
-          <div className="chatHead" data-room={dataRoom(room)}>
+          <div className="chatHead" data-room={currentRoom.id}>
             <span className="dot"></span>
-            <span className="roomCap">{niceLabel(room)}</span>
+            <span className="roomCap">{currentRoom.label}</span>
           </div>
 
           <div className="scroll" ref={scrollerRef}>
             {messages.length === 0 ? (
               <div className="empty">No messages yet. Say hi 👋</div>
             ) : (
-              messages.map((m) => {
+              messages.map((m)=> {
                 const isMine = m.handle === session;
                 return (
                   <div className={`msg ${isMine ? "me" : ""}`} key={m.id}>
@@ -179,22 +171,16 @@ export default function AztecRoom() {
               type="text"
               placeholder="Type a message…"
               value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && onSend()}
+              onChange={(e)=> setText(e.target.value)}
+              onKeyDown={(e)=> e.key === "Enter" && onSend()}
             />
             <button className="btn" onClick={onSend} disabled={sending}>Send</button>
           </div>
         </div>
 
-        {/* Footer */}
         <footer className="footer">
           Built by{" "}
-          <a
-            href="https://x.com/seuncoded"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="by"
-          >
+          <a href="https://x.com/seuncoded" target="_blank" rel="noopener noreferrer" className="by">
             Seuncoded
           </a>
         </footer>
