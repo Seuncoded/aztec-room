@@ -402,8 +402,12 @@ body{
 
 .footer .by{
   color:#b7b6ff;
+  text-decoration: none;
   text-shadow:0 0 14px rgba(111,108,232,.35);
 }
+.by:hover {
+  color: var(--brand1);
+  }
 
 
 html, body { min-height:100%; }

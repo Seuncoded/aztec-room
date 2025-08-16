@@ -199,7 +199,15 @@ export default function AztecRoom() {
         </div>
         {/* Footer */}
 <footer className="footer">
-  Built by <span className="by">Seuncoded</span>
+  Built by{" "}
+  <a 
+    href="https://x.com/seuncoded" 
+    target="_blank" 
+    rel="noopener noreferrer" 
+    className="by"
+  >
+    Seuncoded
+  </a>
 </footer>
       </div>
     </div>
