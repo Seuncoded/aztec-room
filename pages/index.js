@@ -1,35 +1,29 @@
 // pages/index.js
 import { useEffect, useRef, useState } from "react";
 
-
-
+// Single source of truth for labels shown in UI
 const ROOMS = ["General", "Validators", "Helpdesk", "18+"];
 
+// Map UI label -> API room key
+const apiRoom = (label) => (label === "18+" ? "18+" : label.toLowerCase());
 
-function pillId(r) {
-  if (r === "18+") return "18plus";
-  return r; 
-}
+// Map UI label -> CSS data-room value (for your pill/chatHead color hooks)
+const dataRoom = (label) => (label === "18+" ? "18plus" : label.toLowerCase());
 
+// Labels are already nice
+const niceLabel = (label) => label;
 
-function niceLabel(r) {
-  if (r === "off-topic") return "Off Topic";
-  if (r === "18+") return "18+";
-  return r.charAt(0).toUpperCase() + r.slice(1);
-}
-
-
-const colorFromHandle = (handle) => {
+// Deterministic color for handles
+const colorFromHandle = (handle = "") => {
   let hash = 0;
-  for (let i = 0; i < handle.length; i++) {
-    hash = handle.charCodeAt(i) + ((hash << 5) - hash);
-  }
+  for (let i = 0; i < handle.length; i++) hash = handle.charCodeAt(i) + ((hash << 5) - hash);
   const hue = Math.abs(hash % 360);
   return `hsl(${hue}, 65%, 55%)`;
 };
 
 export default function AztecRoom() {
-  const [room, setRoom] = useState(ROOMS[0]);
+  // Store the UI label directly in state (must match ROOMS items)
+  const [room, setRoom] = useState(ROOMS[0]); // "General" on load
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -37,7 +31,7 @@ export default function AztecRoom() {
   const scrollerRef = useRef(null);
   const pollRef = useRef(null);
 
-  
+  // Generate session only in browser
   useEffect(() => {
     if (typeof window === "undefined") return;
     let s = window.sessionStorage.getItem("azr-session");
@@ -50,9 +44,10 @@ export default function AztecRoom() {
     setSession(s);
   }, []);
 
-  
-  const fetchRoom = async (r) => {
+  // Fetch messages for current room (convert UI label -> API key)
+  const fetchRoom = async (label) => {
     try {
+      const r = apiRoom(label);
       const q = new URLSearchParams({ room: r, limit: "100" });
       const res = await fetch(`/api/messages?${q.toString()}`, { cache: "no-store" });
       const j = await res.json();
@@ -67,7 +62,7 @@ export default function AztecRoom() {
     }
   };
 
-
+  // Room change → load + poll
   useEffect(() => {
     if (!room) return;
     fetchRoom(room);
@@ -84,15 +79,16 @@ export default function AztecRoom() {
       const res = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type":"application/json" },
-        body: JSON.stringify({ room, text: t, handle: session })
+        // Convert UI label -> API key here too
+        body: JSON.stringify({ room: apiRoom(room), text: t, handle: session })
       });
       const j = await res.json();
       if (!res.ok) {
         alert(JSON.stringify(j));
       } else {
         setText("");
-       
-        setMessages((prev)=> [...prev, j.item]);
+        // Optimistic append
+        setMessages((prev) => [...prev, j.item]);
         requestAnimationFrame(() => {
           scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
         });
@@ -122,34 +118,26 @@ export default function AztecRoom() {
         <div className="session">@{session}</div>
       </div>
 
-{/* Rooms */}
-<div className="rooms">
-  <div className="pills">
-    {["general", "validators", "helpdesk", "18+"].map((r) => {
-      const dataRoom = r === "18+" ? "18plus" : r; // <-- key line
-      const label =
-        r === "helpdesk" ? "Helpdesk" :
-        r === "validators" ? "Validators" :
-        r === "general" ? "General" : "18+";
-
-      return (
-        <button
-          key={r}
-          className={`pill ${r === room ? "active" : ""}`}
-          data-room={dataRoom}                     // <-- add this
-          onClick={() => setRoom(r)}
-        >
-          {label}
-        </button>
-      );
-    })}
-  </div>
-</div>
+      {/* Rooms */}
+      <div className="rooms">
+        <div className="pills">
+          {ROOMS.map((label) => (
+            <button
+              key={label}
+              className={`pill ${label === room ? "active" : ""}`}
+              data-room={dataRoom(label)}     // hooks your CSS colors (e.g. 18plus)
+              onClick={() => setRoom(label)}  // state stores the UI label
+            >
+              {niceLabel(label)}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Chat */}
       <div className="panel">
         <div className="chat">
-          <div className="chatHead" data-room={pillId(room)}>
+          <div className="chatHead" data-room={dataRoom(room)}>
             <span className="dot"></span>
             <span className="roomCap">{niceLabel(room)}</span>
           </div>
@@ -158,24 +146,24 @@ export default function AztecRoom() {
             {messages.length === 0 ? (
               <div className="empty">No messages yet. Say hi 👋</div>
             ) : (
-              messages.map((m)=> {
+              messages.map((m) => {
                 const isMine = m.handle === session;
                 return (
                   <div className={`msg ${isMine ? "me" : ""}`} key={m.id}>
                     <div className="meta">
                       <span
-  className="handle"
-  style={{
-    backgroundColor: isMine ? "transparent" : colorFromHandle(m.handle),
-    color: isMine ? "#fff" : "#000",
-    padding: "2px 6px",
-    borderRadius: "6px",
-    fontSize: "0.85rem",
-    fontWeight: "600"
-  }}
->
-  @{m.handle || "anon"}
-</span>
+                        className="handle"
+                        style={{
+                          backgroundColor: isMine ? "transparent" : colorFromHandle(m.handle || ""),
+                          color: isMine ? "#fff" : "#000",
+                          padding: "2px 6px",
+                          borderRadius: "6px",
+                          fontSize: "0.85rem",
+                          fontWeight: "600"
+                        }}
+                      >
+                        @{m.handle || "anon"}
+                      </span>
                       <span className="when">{niceTime(m.created_at)}</span>
                     </div>
                     <div className="text">{m.text}</div>
@@ -191,26 +179,26 @@ export default function AztecRoom() {
               type="text"
               placeholder="Type a message…"
               value={text}
-              onChange={(e)=> setText(e.target.value)}
-              onKeyDown={(e)=> e.key === "Enter" && onSend()}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && onSend()}
             />
             <button className="btn" onClick={onSend} disabled={sending}>Send</button>
           </div>
         </div>
+
         {/* Footer */}
-<footer className="footer">
-  Built by{" "}
-  <a 
-    href="https://x.com/seuncoded" 
-    target="_blank" 
-    rel="noopener noreferrer" 
-    className="by"
-  >
-    Seuncoded
-  </a>
-</footer>
+        <footer className="footer">
+          Built by{" "}
+          <a
+            href="https://x.com/seuncoded"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="by"
+          >
+            Seuncoded
+          </a>
+        </footer>
       </div>
     </div>
   );
 }
-
