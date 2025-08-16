@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 
 
-const ROOMS = ["general", "off-topic", "builders", "newcomers", "validators", "18+"];
+const ROOMS = ["General", "Validators", "Helpdesk", "18+"];
 
 
 function pillId(r) {
@@ -122,23 +122,29 @@ export default function AztecRoom() {
         <div className="session">@{session}</div>
       </div>
 
-      {/* Rooms */}
-      <div className="rooms">
-        <div className="pills">
-          {ROOMS.map((r)=>(
-            <button
-              key={r}
-              className={`pill ${r===room ? "active":""}`}
-              data-room={pillId(r)}
-              onClick={()=> setRoom(r)}
-              title={niceLabel(r)}
-              aria-pressed={r===room}
-            >
-              {niceLabel(r)}
-            </button>
-          ))}
-        </div>
-      </div>
+{/* Rooms */}
+<div className="rooms">
+  <div className="pills">
+    {["general", "validators", "helpdesk", "18+"].map((r) => {
+      const dataRoom = r === "18+" ? "18plus" : r; // <-- key line
+      const label =
+        r === "helpdesk" ? "Helpdesk" :
+        r === "validators" ? "Validators" :
+        r === "general" ? "General" : "18+";
+
+      return (
+        <button
+          key={r}
+          className={`pill ${r === room ? "active" : ""}`}
+          data-room={dataRoom}                     // <-- add this
+          onClick={() => setRoom(r)}
+        >
+          {label}
+        </button>
+      );
+    })}
+  </div>
+</div>
 
       {/* Chat */}
       <div className="panel">

@@ -11,9 +11,11 @@
 
   --brand1:#9b5cff; --brand2:#6f6ce8; --brand3:#57a6ff;
 
+  --c-general: #8b5cf6;     /* purple / violet */
+  --c-validators: #e879f9;  /* pink / magenta */
+  --c-helpdesk: #60a5fa;    /* soft blue */
+  --c-18: #ef4444;          /* red */
 
-  --c-general:#7c3aed; --c-offtopic:#06b6d4; --c-builders:#f59e0b;
-  --c-new:#22c55e; --c-validators:#e879f9; --c-18:#ef4444;
 }
 
 *{box-sizing:border-box}
@@ -80,56 +82,111 @@ body{
     inset 0 0 0 1px rgba(255,255,255,.06);
 }
 
-.rooms{max-width:1100px;margin:10px auto 12px;padding:0 16px}
-.pills{
-  display:flex;gap:10px;overflow:auto;padding:8px;border-radius:14px;
-  background:rgba(9,12,28,.82);border:1px solid var(--ring);
-  box-shadow:0 8px 26px rgba(0,0,0,.35);backdrop-filter:blur(6px)
+/* ==== Rooms bar (refined) =============================================== */
+:root{
+  /* add/keep these accents */
+  --c-helpdesk:#60a5fa;        /* soft blue */
 }
-.pill{
-  appearance:none;cursor:pointer;font-weight:900;color:#e9edff;
-  padding:10px 16px;border-radius:999px;border:1px solid var(--ring2);
-  background:linear-gradient(180deg, rgba(38,47,92,.9), rgba(18,26,60,.95));
-  transition:transform .15s ease, box-shadow .15s ease, filter .15s ease;
-  box-shadow:inset 0 -2px 6px rgba(0,0,0,.28), 0 2px 0 rgba(255,255,255,.04);
-}
-.pill:hover{filter:brightness(1.08)}
-.pill:focus-visible{outline:2px solid #8a8bff;outline-offset:2px}
 
+.rooms{max-width:1100px;margin:12px auto 12px;padding:0 16px}
+
+.pills{
+  display:grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap:14px;
+  padding:14px;
+  border-radius:16px;
+  background:rgba(9,12,28,.88);
+  border:1px solid var(--ring);
+  box-shadow:0 10px 26px rgba(0,0,0,.35);
+  backdrop-filter:blur(6px);
+}
+
+.pill{
+  position:relative;
+  appearance:none;
+  cursor:pointer;
+  width:100%;
+  padding:14px 16px;
+  border-radius:14px;
+  border:1px solid var(--ring2);
+  background:
+    linear-gradient(180deg, rgba(40,50,100,.95), rgba(18,26,60,.97));
+  color:#e9edff;
+  font-weight:900;
+  letter-spacing:.2px;
+  text-align:center;
+  transition:
+    transform .15s ease,
+    box-shadow .15s ease,
+    filter .15s ease,
+    border-color .15s ease;
+  box-shadow:
+    inset 0 -2px 6px rgba(0,0,0,.28),
+    0 2px 0 rgba(255,255,255,.04);
+}
+
+/* subtle moving sheen */
+.pill::after{
+  content:"";
+  position:absolute; inset:-1px;
+  border-radius:inherit;
+  background:linear-gradient(120deg, transparent, rgba(255,255,255,.06), transparent);
+  transform:translateX(-150%);
+  transition:opacity .15s;
+  opacity:.0;
+}
+.pill:hover::after{opacity:.9;animation:shine 2.6s linear infinite}
+@keyframes shine{to{transform:translateX(150%)}}
+
+/* lift on hover */
+.pill:hover{filter:brightness(1.06);transform:translateY(-1px)}
+
+/* Active = bright gradient + soft outer glow */
+.pill.active{
+  color:#fff;
+  transform:translateY(-2px);
+  box-shadow:
+    0 12px 24px rgba(0,0,0,.35),
+    0 0 0 1px rgba(255,255,255,.05) inset;
+}
+
+/* Per-room accent (idle ring + active fill + glow) */
+.pill[data-room="general"]{border-color:color-mix(in srgb, var(--c-general) 35%, var(--ring2))}
+.pill[data-room="validators"]{border-color:color-mix(in srgb, var(--c-validators) 35%, var(--ring2))}
+.pill[data-room="helpdesk"]{border-color:color-mix(in srgb, var(--c-helpdesk) 35%, var(--ring2))}
+.pill[data-room="18plus"], .pill[data-room="18+"]{border-color:color-mix(in srgb, var(--c-18) 35%, var(--ring2))}
 
 .pill[data-room="general"].active{
-  background:linear-gradient(180deg,var(--c-general),#5f39e6);
-  border-color:#a48bff; box-shadow:0 10px 22px color-mix(in srgb,var(--c-general) 40%,transparent);
-}
-.pill[data-room="off-topic"].active{
-  background:linear-gradient(180deg,var(--c-offtopic),#0aa4bd);
-  border-color:#6be7ff; box-shadow:0 10px 22px color-mix(in srgb,var(--c-offtopic) 40%,transparent);
-}
-.pill[data-room="builders"].active{
-  background:linear-gradient(180deg,var(--c-builders),#d88a0a);
-  border-color:#ffd58a; box-shadow:0 10px 22px color-mix(in srgb,var(--c-builders) 40%,transparent);
-}
-.pill[data-room="newcomers"].active{
-  background:linear-gradient(180deg,var(--c-new),#169e4b);
-  border-color:#9af3c0; box-shadow:0 10px 22px color-mix(in srgb,var(--c-new) 40%,transparent);
+  background:linear-gradient(180deg, var(--c-general), #5f39e6);
+  border-color:#a48bff;
+  box-shadow:0 14px 26px color-mix(in srgb, var(--c-general) 40%, transparent);
 }
 .pill[data-room="validators"].active{
-  background:linear-gradient(180deg,var(--c-validators),#c155e5);
-  border-color:#f6b2ff; box-shadow:0 10px 22px color-mix(in srgb,var(--c-validators) 40%,transparent);
+  background:linear-gradient(180deg, var(--c-validators), #c155e5);
+  border-color:#f6b2ff;
+  box-shadow:0 14px 26px color-mix(in srgb, var(--c-validators) 40%, transparent);
+}
+.pill[data-room="helpdesk"].active{
+  background:linear-gradient(180deg, var(--c-helpdesk), #3b82f6);
+  border-color:#bcd9ff;
+  box-shadow:0 14px 26px color-mix(in srgb, var(--c-helpdesk) 40%, transparent);
 }
 .pill[data-room="18plus"].active,
 .pill[data-room="18+"].active{
-  background:linear-gradient(180deg,var(--c-18),#c93434);
-  border-color:#ffb5b5; box-shadow:0 10px 22px color-mix(in srgb,var(--c-18) 45%,transparent);
+  background:linear-gradient(180deg, var(--c-18), #c93434);
+  border-color:#ffb5b5;
+  box-shadow:0 14px 26px color-mix(in srgb, var(--c-18) 45%, transparent);
 }
 
-
-.pill[data-room="general"]{border-color:color-mix(in srgb,var(--c-general) 35%,var(--ring2))}
-.pill[data-room="off-topic"]{border-color:color-mix(in srgb,var(--c-offtopic) 35%,var(--ring2))}
-.pill[data-room="builders"]{border-color:color-mix(in srgb,var(--c-builders) 35%,var(--ring2))}
-.pill[data-room="newcomers"]{border-color:color-mix(in srgb,var(--c-new) 35%,var(--ring2))}
-.pill[data-room="validators"]{border-color:color-mix(in srgb,var(--c-validators) 35%,var(--ring2))}
-.pill[data-room="18plus"], .pill[data-room="18+"]{border-color:color-mix(in srgb,var(--c-18) 35%,var(--ring2))}
+/* Responsive – 2 columns on small, 1 on extra small */
+@media (max-width: 700px){
+  .pills{grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; padding:12px}
+  .pill{padding:12px 10px; font-size:14px; border-radius:12px}
+}
+@media (max-width: 380px){
+  .pills{grid-template-columns:1fr}
+}
 
 
 .panel{max-width:1100px;margin:12px auto 24px;padding:0 16px}
@@ -147,6 +204,7 @@ body{
 .roomCap{opacity:.95}
 
 .scroll{height:56vh;overflow:auto;padding:14px}
+
 
 
 .msg{
