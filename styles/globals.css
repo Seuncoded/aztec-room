@@ -1,0 +1,199 @@
+/* styles/globals.css — Aztec Room polished theme (no Tailwind needed) */
+:root{
+  /* base */
+  --bg0:#0a0f18; --bg1:#0e1424;
+  --ink:#e9ecff; --muted:#9ba6d6;
+  --ring:#273264; --ring2:#1d2855;
+
+  /* card layers */
+  --cardA:#0f1832; --cardB:#0b1330; --cardHead:#0b1228;
+
+  /* brand accent for header */
+  --brand1:#9b5cff; --brand2:#6f6ce8; --brand3:#57a6ff;
+
+  /* room colors */
+  --c-general:#7c3aed; --c-offtopic:#06b6d4; --c-builders:#f59e0b;
+  --c-new:#22c55e; --c-validators:#e879f9; --c-18:#ef4444;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; color:var(--ink);
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial;
+  background:
+    radial-gradient(1100px 700px at -10% -20%, #17254a 0%, transparent 45%),
+    radial-gradient(900px 600px at 120% 120%, #1b2761 0%, transparent 55%),
+    linear-gradient(180deg, var(--bg1), var(--bg0));
+}
+
+/* ===== Header ========================================================= */
+.shell{max-width:1100px;margin:28px auto 14px;padding:0 16px}
+.header{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:18px 16px;border-radius:18px;border:1px solid var(--ring);
+  background:linear-gradient(180deg, rgba(18,24,50,.75), rgba(10,14,30,.75));
+  box-shadow:0 10px 28px rgba(0,0,0,.45);
+}
+.hgroup{display:flex;flex-direction:column;gap:6px}
+.title{
+  margin:0;font-size:48px;line-height:1.04;font-weight:900;letter-spacing:.4px;
+  background:linear-gradient(90deg,var(--brand1),var(--brand2) 45%,var(--brand3));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 10px 24px rgba(111,108,232,.25));
+}
+.tagline{margin:0;color:var(--muted);font-weight:700}
+.session{
+  display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;
+  background:#0d1639;border:1px solid #20306c;color:#dbe2ff;font-weight:900;
+  box-shadow:0 6px 16px rgba(0,0,0,.25)
+}
+
+/* ===== Rooms bar ====================================================== */
+.rooms{max-width:1100px;margin:10px auto 12px;padding:0 16px}
+.pills{
+  display:flex;gap:10px;overflow:auto;padding:8px;border-radius:14px;
+  background:rgba(9,12,28,.82);border:1px solid var(--ring);
+  box-shadow:0 8px 26px rgba(0,0,0,.35);backdrop-filter:blur(6px)
+}
+.pill{
+  appearance:none;cursor:pointer;font-weight:900;color:#e9edff;
+  padding:10px 16px;border-radius:999px;border:1px solid var(--ring2);
+  background:linear-gradient(180deg, rgba(38,47,92,.9), rgba(18,26,60,.95));
+  transition:transform .15s ease, box-shadow .15s ease, filter .15s ease;
+  box-shadow:inset 0 -2px 6px rgba(0,0,0,.28), 0 2px 0 rgba(255,255,255,.04);
+}
+.pill:hover{filter:brightness(1.08)}
+.pill:focus-visible{outline:2px solid #8a8bff;outline-offset:2px}
+
+/* active glow per room */
+.pill[data-room="general"].active{
+  background:linear-gradient(180deg,var(--c-general),#5f39e6);
+  border-color:#a48bff; box-shadow:0 10px 22px color-mix(in srgb,var(--c-general) 40%,transparent);
+}
+.pill[data-room="off-topic"].active{
+  background:linear-gradient(180deg,var(--c-offtopic),#0aa4bd);
+  border-color:#6be7ff; box-shadow:0 10px 22px color-mix(in srgb,var(--c-offtopic) 40%,transparent);
+}
+.pill[data-room="builders"].active{
+  background:linear-gradient(180deg,var(--c-builders),#d88a0a);
+  border-color:#ffd58a; box-shadow:0 10px 22px color-mix(in srgb,var(--c-builders) 40%,transparent);
+}
+.pill[data-room="newcomers"].active{
+  background:linear-gradient(180deg,var(--c-new),#169e4b);
+  border-color:#9af3c0; box-shadow:0 10px 22px color-mix(in srgb,var(--c-new) 40%,transparent);
+}
+.pill[data-room="validators"].active{
+  background:linear-gradient(180deg,var(--c-validators),#c155e5);
+  border-color:#f6b2ff; box-shadow:0 10px 22px color-mix(in srgb,var(--c-validators) 40%,transparent);
+}
+.pill[data-room="18plus"].active,
+.pill[data-room="18+"].active{
+  background:linear-gradient(180deg,var(--c-18),#c93434);
+  border-color:#ffb5b5; box-shadow:0 10px 22px color-mix(in srgb,var(--c-18) 45%,transparent);
+}
+
+/* subtle colored ring when idle */
+.pill[data-room="general"]{border-color:color-mix(in srgb,var(--c-general) 35%,var(--ring2))}
+.pill[data-room="off-topic"]{border-color:color-mix(in srgb,var(--c-offtopic) 35%,var(--ring2))}
+.pill[data-room="builders"]{border-color:color-mix(in srgb,var(--c-builders) 35%,var(--ring2))}
+.pill[data-room="newcomers"]{border-color:color-mix(in srgb,var(--c-new) 35%,var(--ring2))}
+.pill[data-room="validators"]{border-color:color-mix(in srgb,var(--c-validators) 35%,var(--ring2))}
+.pill[data-room="18plus"], .pill[data-room="18+"]{border-color:color-mix(in srgb,var(--c-18) 35%,var(--ring2))}
+
+/* ===== Chat panel ===================================================== */
+.panel{max-width:1100px;margin:12px auto 24px;padding:0 16px}
+.chat{
+  border:1px solid var(--ring); border-radius:16px; overflow:hidden;
+  background:linear-gradient(180deg,var(--cardA),var(--cardB));
+  box-shadow:0 10px 28px rgba(0,0,0,.45);
+}
+.chatHead{
+  display:flex;align-items:center;gap:10px;padding:12px 14px;
+  border-bottom:1px solid #1a254d;background:var(--cardHead);
+  color:#d8deff;font-weight:900;letter-spacing:.2px
+}
+.dot{width:8px;height:8px;border-radius:50%;background:#45f08a;box-shadow:0 0 8px #45f08a}
+.roomCap{opacity:.95}
+
+.scroll{height:56vh;overflow:auto;padding:14px}
+
+/* ===== Messages ======================================================= */
+.msg{
+  max-width:75%;
+  padding:10px 12px 12px;
+  margin:10px 0;
+  border-radius:12px;
+  font-size:1rem; line-height:1.45;
+  border:1px solid #253052;
+  background:#1b1f36;
+  color:#e5e8f0;
+  position:relative;
+  transition:box-shadow .15s ease, transform .15s ease;
+}
+.msg.me{
+  margin-left:auto;
+  background:#2d3c72;
+  border-color:#37407a;
+  color:#ffffff;
+}
+.msg:hover{transform:translateY(-1px);box-shadow:0 12px 20px rgba(0,0,0,.32)}
+
+/* small speech tails */
+.msg::after{
+  content:""; position:absolute; bottom:-6px; left:16px;
+  width:10px; height:10px; background:inherit; transform:rotate(45deg);
+  border-right:1px solid rgba(255,255,255,.06);
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.msg.me::after{
+  left:auto; right:16px; border-right:0; border-bottom:0;
+  border-left:1px solid rgba(255,255,255,.06);
+  border-top:1px solid rgba(255,255,255,.06);
+}
+
+/* header row inside message */
+.meta{
+  display:flex; align-items:center; gap:10px;
+  margin-bottom:6px; font-size:12px;
+}
+.handle{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:4px 10px; border-radius:999px;
+  color:#0a1026; background:#e5e9ff; border:1px solid #b8c4ff;
+  font-weight:900; letter-spacing:.2px;
+}
+.msg.me .handle{background:#cdd6ff;border-color:#aebdff;color:#0a1026}
+.when{margin-left:auto;color:#9fb2ff;font-weight:800;font-size:12px;opacity:.95}
+.text{
+  color:#eef2ff; line-height:1.55; white-space:pre-wrap; word-break:break-word;
+  border-top:1px solid rgba(255,255,255,.06); padding-top:6px;
+}
+
+/* empty state */
+.empty{text-align:center;color:#b7c3ff;opacity:.85;font-weight:800;padding:20px 8px}
+
+/* ===== Composer ======================================================= */
+.compose{
+  display:flex;gap:10px;align-items:center;padding:12px;
+  border-top:1px solid #1a254d;background:var(--cardHead)
+}
+.input{
+  flex:1;height:48px;border-radius:12px;padding:0 14px;color:#e9edff;
+  border:1px solid #2a3a7a;background:linear-gradient(180deg,#111a3d,#0f1738);
+  outline:none;font-size:15px;box-shadow:inset 0 -2px 6px rgba(0,0,0,.25)
+}
+.input::placeholder{color:#8aa0e0}
+.btn{
+  height:48px;padding:0 20px;border-radius:12px;font-weight:900;color:#fff;border:0;cursor:pointer;
+  background:linear-gradient(180deg,#8e84ff,#6f6ce8); box-shadow:0 8px 18px rgba(111,108,232,.25);
+  transition:transform .1s ease, filter .1s ease
+}
+.btn:hover{filter:brightness(1.06);transform:translateY(-1px)}
+.btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
+
+/* ===== Responsive ===================================================== */
+@media (max-width:640px){
+  .title{font-size:36px}
+  .scroll{height:58vh}
+}
