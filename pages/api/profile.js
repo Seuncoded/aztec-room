@@ -1,7 +1,7 @@
 // pages/api/messages.js
 import { sbAdmin } from "../../lib/supabaseAdmin";
 
-const TABLE = "messages"; // expects columns: id (uuid), room (text), handle (text), text (text), pfp_url (text), created_at (timestamptz)
+const TABLE = "messages"; 
 
 export default async function handler(req, res) {
   const supabase = sbAdmin();

@@ -5,20 +5,20 @@ import { useEffect, useRef, useState } from "react";
 
 const ROOMS = ["general", "off-topic", "builders", "newcomers", "validators", "18+"];
 
-// map a room name to a CSS-friendly token used by the styles (data-room selectors)
+
 function pillId(r) {
   if (r === "18+") return "18plus";
-  return r; // general, off-topic, builders, newcomers, validators
+  return r; 
 }
 
-// pretty label for UI
+
 function niceLabel(r) {
   if (r === "off-topic") return "Off Topic";
   if (r === "18+") return "18+";
   return r.charAt(0).toUpperCase() + r.slice(1);
 }
 
-// Generate a consistent color from handle
+
 const colorFromHandle = (handle) => {
   let hash = 0;
   for (let i = 0; i < handle.length; i++) {
@@ -37,7 +37,7 @@ export default function AztecRoom() {
   const scrollerRef = useRef(null);
   const pollRef = useRef(null);
 
-  // generate session ONLY in browser
+  
   useEffect(() => {
     if (typeof window === "undefined") return;
     let s = window.sessionStorage.getItem("azr-session");
@@ -50,7 +50,7 @@ export default function AztecRoom() {
     setSession(s);
   }, []);
 
-  // fetch messages for a room
+  
   const fetchRoom = async (r) => {
     try {
       const q = new URLSearchParams({ room: r, limit: "100" });
@@ -67,7 +67,7 @@ export default function AztecRoom() {
     }
   };
 
-  // switch room → load + start polling
+
   useEffect(() => {
     if (!room) return;
     fetchRoom(room);
@@ -91,7 +91,7 @@ export default function AztecRoom() {
         alert(JSON.stringify(j));
       } else {
         setText("");
-        // optimistic add while the next poll catches it
+       
         setMessages((prev)=> [...prev, j.item]);
         requestAnimationFrame(() => {
           scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
@@ -117,7 +117,7 @@ export default function AztecRoom() {
       <div className="header">
         <div className="hgroup">
           <h1 className="title">Aztec Room</h1>
-          <p className="tagline">Anonymous community chat. Pick a room, drop a thought, keep it kind.</p>
+          <p className="tagline">Anonymous chats for the Aztec family</p>
         </div>
         <div className="session">@{session}</div>
       </div>
@@ -191,7 +191,12 @@ export default function AztecRoom() {
             <button className="btn" onClick={onSend} disabled={sending}>Send</button>
           </div>
         </div>
+        {/* Footer */}
+<footer className="footer">
+  Built by <span className="by">Seuncoded</span>
+</footer>
       </div>
     </div>
   );
 }
+

@@ -1,5 +1,5 @@
 // pages/api/messages.js
-import { sbAdmin } from "../../lib/supabaseAdmin.js"; // your existing admin helper
+import { sbAdmin } from "../../lib/supabaseAdmin.js"; 
 
 const TABLE = "messages";
 
