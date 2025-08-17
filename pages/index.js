@@ -1,15 +1,13 @@
 // pages/index.js
 import { useEffect, useRef, useState } from "react";
+import { sb } from "../lib/supabase"; // <-- NEW
 
-// One source of truth
-const ROOMS = [
-  { id: "general",    label: "General" },
-  { id: "validators", label: "Validators" },
-  { id: "helpdesk",   label: "Helpdesk" },
-  { id: "18plus",     label: "18+" },
-];
+const ROOMS = ["General", "Validators", "Helpdesk", "18+"];
 
-const colorFromHandle = (handle = "") => {
+function pillId(r) { return r === "18+" ? "18plus" : r; }
+function niceLabel(r) { return r === "18+" ? "18+" : r.charAt(0).toUpperCase()+r.slice(1); }
+
+const colorFromHandle = (handle) => {
   let hash = 0;
   for (let i = 0; i < handle.length; i++) hash = handle.charCodeAt(i) + ((hash << 5) - hash);
   const hue = Math.abs(hash % 360);
@@ -17,17 +15,18 @@ const colorFromHandle = (handle = "") => {
 };
 
 export default function AztecRoom() {
-  // store the **id** (e.g., "validators", "18plus")
-  const [roomId, setRoomId] = useState(ROOMS[0].id);
+  const [room, setRoom] = useState(ROOMS[0].toLowerCase()); // store as lowercase
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [session, setSession] = useState("");
+  const [typers, setTypers] = useState([]); // <-- NEW
   const scrollerRef = useRef(null);
   const pollRef = useRef(null);
+  const typingTimeoutsRef = useRef(new Map()); // handle -> timeoutId
+  const channelRef = useRef(null); // supabase realtime channel
 
-  const currentRoom = ROOMS.find(r => r.id === roomId) ?? ROOMS[0];
-
+  // session handle
   useEffect(() => {
     if (typeof window === "undefined") return;
     let s = window.sessionStorage.getItem("azr-session");
@@ -40,9 +39,10 @@ export default function AztecRoom() {
     setSession(s);
   }, []);
 
-  const fetchRoom = async (id) => {
+  // fetch messages
+  const fetchRoom = async (r) => {
     try {
-      const q = new URLSearchParams({ room: id, limit: "100" });
+      const q = new URLSearchParams({ room: r, limit: "100" });
       const res = await fetch(`/api/messages?${q.toString()}`, { cache: "no-store" });
       const j = await res.json();
       if (res.ok && j.items) {
@@ -51,19 +51,77 @@ export default function AztecRoom() {
           scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "auto" });
         });
       }
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
   };
 
+  // polling and realtime typing channel per room
   useEffect(() => {
-    if (!roomId) return;
-    fetchRoom(roomId);
-    clearInterval(pollRef.current);
-    pollRef.current = setInterval(() => fetchRoom(roomId), 2500);
-    return () => clearInterval(pollRef.current);
-  }, [roomId]);
+    if (!room) return;
 
+    // 1) poll for messages
+    fetchRoom(room);
+    clearInterval(pollRef.current);
+    pollRef.current = setInterval(() => fetchRoom(room), 2500);
+
+    // 2) supabase realtime channel for typing (no DB)
+    // clean previous
+    if (channelRef.current) {
+      sb.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+    setTypers([]); // reset visible typers
+    typingTimeoutsRef.current.forEach((t) => clearTimeout(t));
+    typingTimeoutsRef.current.clear();
+
+    const ch = sb.channel(`room:${room}`);
+    channelRef.current = ch;
+
+    ch.on("broadcast", { event: "typing" }, (payload) => {
+      const { handle } = payload.payload || {};
+      if (!handle || handle === session) return;
+
+      // add/update typer
+      setTypers((prev) => {
+        if (prev.includes(handle)) return prev;
+        return [...prev, handle];
+      });
+
+      // auto remove after 3s (refresh if event repeats)
+      const old = typingTimeoutsRef.current.get(handle);
+      if (old) clearTimeout(old);
+      const tid = setTimeout(() => {
+        typingTimeoutsRef.current.delete(handle);
+        setTypers((prev) => prev.filter((h) => h !== handle));
+      }, 3000);
+      typingTimeoutsRef.current.set(handle, tid);
+    });
+
+    ch.subscribe();
+
+    return () => {
+      clearInterval(pollRef.current);
+      if (channelRef.current) sb.removeChannel(channelRef.current);
+      channelRef.current = null;
+      typingTimeoutsRef.current.forEach((t) => clearTimeout(t));
+      typingTimeoutsRef.current.clear();
+    };
+  }, [room, session]);
+
+  // throttle typing broadcasts
+  const lastTypedAtRef = useRef(0);
+  const sendTyping = () => {
+    const now = Date.now();
+    if (!channelRef.current) return;
+    if (now - lastTypedAtRef.current < 900) return; // ~1s throttle
+    lastTypedAtRef.current = now;
+    channelRef.current.send({
+      type: "broadcast",
+      event: "typing",
+      payload: { handle: session },
+    });
+  };
+
+  // send message
   const onSend = async () => {
     const t = text.trim();
     if (!t) return;
@@ -71,20 +129,20 @@ export default function AztecRoom() {
     try {
       const res = await fetch("/api/messages", {
         method: "POST",
-        headers: { "Content-Type":"application/json" },
-        body: JSON.stringify({ room: roomId, text: t, handle: session })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ room, text: t, handle: session }),
       });
       const j = await res.json();
       if (!res.ok) {
         alert(JSON.stringify(j));
       } else {
         setText("");
-        setMessages((prev)=> [...prev, j.item]);
+        setMessages((prev) => [...prev, j.item]);
         requestAnimationFrame(() => {
           scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
         });
       }
-    } catch (e) {
+    } catch {
       alert("Network error");
     } finally {
       setSending(false);
@@ -93,8 +151,8 @@ export default function AztecRoom() {
 
   const niceTime = (iso) => {
     const d = new Date(iso);
-    const hh = d.getHours().toString().padStart(2,"0");
-    const mm = d.getMinutes().toString().padStart(2,"0");
+    const hh = d.getHours().toString().padStart(2, "0");
+    const mm = d.getMinutes().toString().padStart(2, "0");
     return `${hh}:${mm}`;
   };
 
@@ -112,33 +170,72 @@ export default function AztecRoom() {
       {/* Rooms */}
       <div className="rooms">
         <div className="pills">
-          {ROOMS.map(({ id, label }) => (
-            <button
-              key={id}
-              type="button"
-              className={`pill ${roomId === id ? "active" : ""}`}
-              data-room={id}                 // matches your CSS hooks (use "18plus" here)
-              onClick={() => setRoomId(id)}  // store id only
-            >
-              {label}
-            </button>
-          ))}
+          {["general", "validators", "helpdesk", "18+"].map((r) => {
+            const rKey = r.toLowerCase();
+            const dataRoom = rKey === "18+" ? "18plus" : rKey;
+            const label =
+              rKey === "helpdesk" ? "Helpdesk" :
+              rKey === "validators" ? "Validators" :
+              rKey === "general" ? "General" : "18+";
+            return (
+              <button
+                key={r}
+                className={`pill ${rKey === room ? "active" : ""}`}
+                data-room={dataRoom}
+                onClick={() => setRoom(rKey)}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Chat */}
       <div className="panel">
         <div className="chat">
-          <div className="chatHead" data-room={currentRoom.id}>
+          <div className="chatHead" data-room={pillId(room)}>
             <span className="dot"></span>
-            <span className="roomCap">{currentRoom.label}</span>
+            <span className="roomCap">{niceLabel(room)}</span>
           </div>
+
+          {/* Typing bar (NEW) */}
+          {/* Typing bar (fancy) */}
+{typers.length > 0 && (
+  <div className="typingBar">
+    <div className="typingLeft">
+      {typers.slice(0, 3).map((h) => (
+        <div
+  key={h}
+  className="typingAv"
+  title={h}
+  style={{ background: colorFromHandle(h) }}
+>
+  <div className="pulse" />
+  <span className="initial">{h.replace(/^@?/, "").charAt(0).toUpperCase()}</span>
+</div>
+      ))}
+      <div className="typingText">
+        {typers.length === 1
+          ? `${typers[0]} is typing`
+          : `${typers[0]} & ${typers[1]}${
+              typers.length > 2 ? ` +${typers.length - 2}` : ""
+            } are typing`}
+      </div>
+    </div>
+    <div className="typingDots">
+      <span className="dot d1" />
+      <span className="dot d2" />
+      <span className="dot d3" />
+    </div>
+  </div>
+)}
 
           <div className="scroll" ref={scrollerRef}>
             {messages.length === 0 ? (
               <div className="empty">No messages yet. Say hi 👋</div>
             ) : (
-              messages.map((m)=> {
+              messages.map((m) => {
                 const isMine = m.handle === session;
                 return (
                   <div className={`msg ${isMine ? "me" : ""}`} key={m.id}>
@@ -146,12 +243,12 @@ export default function AztecRoom() {
                       <span
                         className="handle"
                         style={{
-                          backgroundColor: isMine ? "transparent" : colorFromHandle(m.handle || ""),
+                          backgroundColor: isMine ? "transparent" : colorFromHandle(m.handle),
                           color: isMine ? "#fff" : "#000",
                           padding: "2px 6px",
                           borderRadius: "6px",
                           fontSize: "0.85rem",
-                          fontWeight: "600"
+                          fontWeight: "600",
                         }}
                       >
                         @{m.handle || "anon"}
@@ -171,13 +268,14 @@ export default function AztecRoom() {
               type="text"
               placeholder="Type a message…"
               value={text}
-              onChange={(e)=> setText(e.target.value)}
-              onKeyDown={(e)=> e.key === "Enter" && onSend()}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={sendTyping}           // <-- NEW: broadcast typing
             />
             <button className="btn" onClick={onSend} disabled={sending}>Send</button>
           </div>
         </div>
 
+        {/* Footer */}
         <footer className="footer">
           Built by{" "}
           <a href="https://x.com/seuncoded" target="_blank" rel="noopener noreferrer" className="by">

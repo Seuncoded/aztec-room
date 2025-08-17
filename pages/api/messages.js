@@ -1,5 +1,12 @@
 // pages/api/messages.js
 import { sbAdmin } from "../../lib/supabaseAdmin.js"; 
+// --- Slow mode (5s) ---------------------------------------------------------
+const COOLDOWN_MS = 5000;
+
+
+const lastPostMap = global._lastPostMap || new Map();
+if (!global._lastPostMap) global._lastPostMap = lastPostMap;
+// ---------------------------------------------------------------------------
 
 const TABLE = "messages";
 
