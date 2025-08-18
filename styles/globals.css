@@ -489,3 +489,73 @@ body {
   box-shadow:0 0 10px rgba(99,124,255,.8);
   vertical-align:middle;
 }
+
+.dmOverlay{
+  position: fixed; inset: 0;
+  background: rgba(4, 8, 20, .55);
+  backdrop-filter: blur(6px);
+  display: grid; place-items: center;
+  z-index: 60;
+}
+
+.dmCard{
+  width: min(820px, 92vw);
+  max-height: 80vh;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--ring);
+  background: linear-gradient(180deg, var(--cardA), var(--cardB));
+  box-shadow: 0 24px 60px rgba(0,0,0,.55);
+  display: grid; grid-template-rows: auto 1fr auto;
+}
+
+.dmHead{
+  display:flex; align-items:center; gap:10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #1a254d;
+  background: var(--cardHead);
+  color:#d8deff; font-weight:900;
+}
+.dmTitle{ letter-spacing:.2px }
+.dmHandle{ color:#cdd6ff }
+.dmClose{
+  margin-left:auto; cursor:pointer;
+  width:32px; height:32px; border-radius:10px;
+  border:1px solid var(--ring2);
+  background: linear-gradient(180deg,#151c3d,#0f1738);
+  color:#cfd7ff; font-weight:900;
+}
+
+.dmScroll{
+  overflow:auto; padding:14px;
+  background: transparent;
+}
+
+.typingBar{
+  display:flex; align-items:center; gap:10px;
+  margin: 10px 16px 6px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--ring2);
+  background: linear-gradient(180deg,#10183a,#0c1332);
+  color:#aebaf5; font-weight:800; letter-spacing:.2px;
+}
+.typeDot{
+  display:inline-flex; align-items:center;
+  padding: 2px 8px; border-radius: 999px;
+  background:#e5e9ff; color:#0a1026; border:1px solid #b8c4ff;
+  font-weight:900; font-size:12px;
+}
+.typeAnim{ display:inline-flex; gap:4px; margin-left: 4px; }
+.typeAnim span{
+  width:6px; height:6px; border-radius:50%;
+  background:#bcd0ff; opacity:.7; animation: tbounce 1.2s infinite;
+}
+.typeAnim span:nth-child(2){ animation-delay:.15s }
+.typeAnim span:nth-child(3){ animation-delay:.3s }
+@keyframes tbounce{
+  0%, 80%, 100% { transform: translateY(0); opacity:.6 }
+  40% { transform: translateY(-4px); opacity:1 }
+}
+.dmPanel{ width: min(760px, 96vw); max-height: 88vh; }
+

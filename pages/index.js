@@ -1,11 +1,18 @@
 // pages/index.js
 import { useEffect, useRef, useState } from "react";
-import { sb } from "../lib/supabase"; // <-- NEW
+import { generateAztecHandle } from "../lib/aztecName";
 
-const ROOMS = ["General", "Validators", "Helpdesk", "18+"];
 
-function pillId(r) { return r === "18+" ? "18plus" : r; }
-function niceLabel(r) { return r === "18+" ? "18+" : r.charAt(0).toUpperCase()+r.slice(1); }
+const ROOMS = ["general", "validators", "helpdesk", "18+"];
+
+function pillId(r) {
+  return r === "18+" ? "18plus" : r; 
+}
+
+function labelForRoom(r) {
+  if (r === "18+") return "18+";
+  return r.charAt(0).toUpperCase() + r.slice(1);
+}
 
 const colorFromHandle = (handle) => {
   let hash = 0;
@@ -15,31 +22,43 @@ const colorFromHandle = (handle) => {
 };
 
 export default function AztecRoom() {
-  const [room, setRoom] = useState(ROOMS[0].toLowerCase()); // store as lowercase
+
+  const [room, setRoom] = useState("general");
+
+ 
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [typingHandles, setTypingHandles] = useState([]);
+const typingPollRef = useRef(null);
+let typingPingTimer = null; 
+
+  
   const [session, setSession] = useState("");
-  const [typers, setTypers] = useState([]); // <-- NEW
+
+ 
+  const [dmWith, setDmWith] = useState("");
+  const [dmMessages, setDmMessages] = useState([]);
+  const [dmText, setDmText] = useState("");
+  const [dmSending, setDmSending] = useState(false);
+
+  
   const scrollerRef = useRef(null);
   const pollRef = useRef(null);
-  const typingTimeoutsRef = useRef(new Map()); // handle -> timeoutId
-  const channelRef = useRef(null); // supabase realtime channel
+  const dmPollRef = useRef(null);
 
-  // session handle
+  
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    let s = window.sessionStorage.getItem("azr-session");
-    if (!s) {
-      const animals = ["bear","tiger","wolf","owl","lynx","otter","fox","eagle"];
-      const adjs = ["silent","mellow","cosmic","lucky","shadow","iron","mystic","steady"];
-      s = `${adjs[Math.floor(Math.random()*adjs.length)]}-${animals[Math.floor(Math.random()*animals.length)]}-${Math.floor(Math.random()*900+100)}`;
-      window.sessionStorage.setItem("azr-session", s);
-    }
-    setSession(s);
-  }, []);
+  if (typeof window === "undefined") return;
+  let s = window.sessionStorage.getItem("azr-session");
+  if (!s) {
+    s = generateAztecHandle();            
+    window.sessionStorage.setItem("azr-session", s);
+  }
+  setSession(s);
+}, []);
 
-  // fetch messages
+
   const fetchRoom = async (r) => {
     try {
       const q = new URLSearchParams({ room: r, limit: "100" });
@@ -47,81 +66,53 @@ export default function AztecRoom() {
       const j = await res.json();
       if (res.ok && j.items) {
         setMessages(j.items);
-        requestAnimationFrame(() => {
-          scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "auto" });
-        });
+        requestAnimationFrame(() =>
+          scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "auto" })
+        );
+      } else {
+        console.error("Room fetch error:", j);
       }
-    } catch (e) { console.error(e); }
-  };
-
-  // polling and realtime typing channel per room
-  useEffect(() => {
-    if (!room) return;
-
-    // 1) poll for messages
-    fetchRoom(room);
-    clearInterval(pollRef.current);
-    pollRef.current = setInterval(() => fetchRoom(room), 2500);
-
-    // 2) supabase realtime channel for typing (no DB)
-    // clean previous
-    if (channelRef.current) {
-      sb.removeChannel(channelRef.current);
-      channelRef.current = null;
+    } catch (e) {
+      console.error("Room fetch error:", e);
     }
-    setTypers([]); // reset visible typers
-    typingTimeoutsRef.current.forEach((t) => clearTimeout(t));
-    typingTimeoutsRef.current.clear();
-
-    const ch = sb.channel(`room:${room}`);
-    channelRef.current = ch;
-
-    ch.on("broadcast", { event: "typing" }, (payload) => {
-      const { handle } = payload.payload || {};
-      if (!handle || handle === session) return;
-
-      // add/update typer
-      setTypers((prev) => {
-        if (prev.includes(handle)) return prev;
-        return [...prev, handle];
-      });
-
-      // auto remove after 3s (refresh if event repeats)
-      const old = typingTimeoutsRef.current.get(handle);
-      if (old) clearTimeout(old);
-      const tid = setTimeout(() => {
-        typingTimeoutsRef.current.delete(handle);
-        setTypers((prev) => prev.filter((h) => h !== handle));
-      }, 3000);
-      typingTimeoutsRef.current.set(handle, tid);
-    });
-
-    ch.subscribe();
-
-    return () => {
-      clearInterval(pollRef.current);
-      if (channelRef.current) sb.removeChannel(channelRef.current);
-      channelRef.current = null;
-      typingTimeoutsRef.current.forEach((t) => clearTimeout(t));
-      typingTimeoutsRef.current.clear();
-    };
-  }, [room, session]);
-
-  // throttle typing broadcasts
-  const lastTypedAtRef = useRef(0);
-  const sendTyping = () => {
-    const now = Date.now();
-    if (!channelRef.current) return;
-    if (now - lastTypedAtRef.current < 900) return; // ~1s throttle
-    lastTypedAtRef.current = now;
-    channelRef.current.send({
-      type: "broadcast",
-      event: "typing",
-      payload: { handle: session },
-    });
   };
 
-  // send message
+  const pingTyping = () => {
+
+  if (typingPingTimer) return;
+  typingPingTimer = setTimeout(() => { typingPingTimer = null; }, 1000);
+  fetch("/api/typing", {
+    method: "POST",
+    headers: { "Content-Type":"application/json" },
+    body: JSON.stringify({ room, handle: session })
+  }).catch(()=>{});
+};
+
+const pollTyping = async (r) => {
+  try {
+    const res = await fetch(`/api/typing?room=${encodeURIComponent(r)}`, { cache: "no-store" });
+    const j = await res.json();
+    if (res.ok) setTypingHandles(j.items?.filter(h => h !== session) || []);
+  } catch(e){ /* noop */ }
+};
+
+  useEffect(() => {
+  if (!room) return;
+  fetchRoom(room);
+
+  clearInterval(pollRef.current);
+  pollRef.current = setInterval(() => fetchRoom(room), 2500);
+
+  clearInterval(typingPollRef.current);
+  typingPollRef.current = setInterval(() => pollTyping(room), 1200);
+  pollTyping(room);
+
+  return () => {
+    clearInterval(pollRef.current);
+    clearInterval(typingPollRef.current);
+  };
+}, [room]);
+
   const onSend = async () => {
     const t = text.trim();
     if (!t) return;
@@ -129,30 +120,92 @@ export default function AztecRoom() {
     try {
       const res = await fetch("/api/messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ room, text: t, handle: session }),
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify({ room, text: t, handle: session })
       });
-      const j = await res.json();
+      const raw = await res.text();
+      let j = {};
+      try { j = raw ? JSON.parse(raw) : {}; } catch {}
       if (!res.ok) {
-        alert(JSON.stringify(j));
+        alert(j.error || raw || "Failed to send");
       } else {
         setText("");
-        setMessages((prev) => [...prev, j.item]);
-        requestAnimationFrame(() => {
-          scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
-        });
+        setMessages(prev => (j.item ? [...prev, j.item] : prev));
+        requestAnimationFrame(() =>
+          scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior:"smooth" })
+        );
       }
-    } catch {
+    } catch (e) {
       alert("Network error");
     } finally {
       setSending(false);
     }
   };
 
+  
+  const openDM = (handle) => {
+    if (!handle || handle === session) return;
+    setDmWith(handle);
+  };
+
+  const closeDM = () => {
+    setDmWith("");
+    setDmMessages([]);
+    clearInterval(dmPollRef.current);
+  };
+
+  const fetchDM = async (me, other) => {
+    try {
+      const res = await fetch(
+        `/api/dm?me=${encodeURIComponent(me)}&with=${encodeURIComponent(other)}&limit=100`,
+        { cache: "no-store" }
+      );
+      const j = await res.json();
+      if (res.ok) setDmMessages(j.items || []);
+    } catch (e) {
+      console.error("DM fetch error", e);
+    }
+  };
+
+  useEffect(() => {
+    if (!dmWith || !session) return;
+    fetchDM(session, dmWith);
+    clearInterval(dmPollRef.current);
+    dmPollRef.current = setInterval(() => fetchDM(session, dmWith), 5000);
+    return () => clearInterval(dmPollRef.current);
+  }, [dmWith, session]);
+
+  const sendDM = async () => {
+    const t = dmText.trim();
+    if (!t || !dmWith) return;
+    setDmSending(true);
+    try {
+      const res = await fetch("/api/dm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from: session, to: dmWith, text: t })
+      });
+      const raw = await res.text();
+      let j = {};
+      try { j = raw ? JSON.parse(raw) : {}; } catch {}
+      if (!res.ok) {
+        console.error("DM error:", raw);
+        alert(j.error || raw || "DM failed");
+      } else {
+        setDmText("");
+        setDmMessages(prev => (j.item ? [...prev, j.item] : prev));
+      }
+    } catch (e) {
+      alert("Network error");
+    } finally {
+      setDmSending(false);
+    }
+  };
+
   const niceTime = (iso) => {
     const d = new Date(iso);
-    const hh = d.getHours().toString().padStart(2, "0");
-    const mm = d.getMinutes().toString().padStart(2, "0");
+    const hh = d.getHours().toString().padStart(2,"0");
+    const mm = d.getMinutes().toString().padStart(2,"0");
     return `${hh}:${mm}`;
   };
 
@@ -170,24 +223,16 @@ export default function AztecRoom() {
       {/* Rooms */}
       <div className="rooms">
         <div className="pills">
-          {["general", "validators", "helpdesk", "18+"].map((r) => {
-            const rKey = r.toLowerCase();
-            const dataRoom = rKey === "18+" ? "18plus" : rKey;
-            const label =
-              rKey === "helpdesk" ? "Helpdesk" :
-              rKey === "validators" ? "Validators" :
-              rKey === "general" ? "General" : "18+";
-            return (
-              <button
-                key={r}
-                className={`pill ${rKey === room ? "active" : ""}`}
-                data-room={dataRoom}
-                onClick={() => setRoom(rKey)}
-              >
-                {label}
-              </button>
-            );
-          })}
+          {ROOMS.map((r) => (
+            <button
+              key={r}
+              className={`pill ${r === room ? "active" : ""}`}
+              data-room={pillId(r)}
+              onClick={() => setRoom(r)}
+            >
+              {labelForRoom(r)}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -196,41 +241,19 @@ export default function AztecRoom() {
         <div className="chat">
           <div className="chatHead" data-room={pillId(room)}>
             <span className="dot"></span>
-            <span className="roomCap">{niceLabel(room)}</span>
+            <span className="roomCap">{labelForRoom(room)}</span>
           </div>
 
-          {/* Typing bar (NEW) */}
-          {/* Typing bar (fancy) */}
-{typers.length > 0 && (
+{typingHandles.length > 0 && (
   <div className="typingBar">
-    <div className="typingLeft">
-      {typers.slice(0, 3).map((h) => (
-        <div
-  key={h}
-  className="typingAv"
-  title={h}
-  style={{ background: colorFromHandle(h) }}
->
-  <div className="pulse" />
-  <span className="initial">{h.replace(/^@?/, "").charAt(0).toUpperCase()}</span>
-</div>
-      ))}
-      <div className="typingText">
-        {typers.length === 1
-          ? `${typers[0]} is typing`
-          : `${typers[0]} & ${typers[1]}${
-              typers.length > 2 ? ` +${typers.length - 2}` : ""
-            } are typing`}
-      </div>
-    </div>
-    <div className="typingDots">
-      <span className="dot d1" />
-      <span className="dot d2" />
-      <span className="dot d3" />
-    </div>
+    {typingHandles.slice(0, 3).map((h, i) => (
+      <span className="typeDot" key={h + i}>@{h}</span>
+    ))}
+    <span className="typeAnim">
+      <span></span><span></span><span></span>
+    </span>
   </div>
 )}
-
           <div className="scroll" ref={scrollerRef}>
             {messages.length === 0 ? (
               <div className="empty">No messages yet. Say hi 👋</div>
@@ -242,6 +265,7 @@ export default function AztecRoom() {
                     <div className="meta">
                       <span
                         className="handle"
+                        onClick={() => openDM(m.handle)}
                         style={{
                           backgroundColor: isMine ? "transparent" : colorFromHandle(m.handle),
                           color: isMine ? "#fff" : "#000",
@@ -249,6 +273,7 @@ export default function AztecRoom() {
                           borderRadius: "6px",
                           fontSize: "0.85rem",
                           fontWeight: "600",
+                          cursor: "pointer"
                         }}
                       >
                         @{m.handle || "anon"}
@@ -263,14 +288,15 @@ export default function AztecRoom() {
           </div>
 
           <div className="compose">
-            <input
-              className="input"
-              type="text"
-              placeholder="Type a message…"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={sendTyping}           // <-- NEW: broadcast typing
-            />
+         <input
+  className="input"
+  type="text"
+  placeholder="Type a message…"
+  value={text}
+  onChange={(e)=> setText(e.target.value)}
+  onInput={pingTyping}              
+  onKeyDown={(e)=> e.key === "Enter" && onSend()}
+/>
             <button className="btn" onClick={onSend} disabled={sending}>Send</button>
           </div>
         </div>
@@ -278,11 +304,69 @@ export default function AztecRoom() {
         {/* Footer */}
         <footer className="footer">
           Built by{" "}
-          <a href="https://x.com/seuncoded" target="_blank" rel="noopener noreferrer" className="by">
+          <a
+            href="https://x.com/seuncoded"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="by"
+          >
             Seuncoded
           </a>
         </footer>
       </div>
+
+      {/* DM modal */}
+      {dmWith && (
+        <div className="dmOverlay" onClick={closeDM}>
+          <div className="dmCard" onClick={(e) => e.stopPropagation()}>
+            <div className="dmHead">
+              <div className="dmTitle">DM with <span className="dmHandle">@{dmWith}</span></div>
+              <button className="dmClose" onClick={closeDM}>×</button>
+            </div>
+
+            <div className="dmScroll">
+              {dmMessages.length === 0 ? (
+                <div className="empty">Say hello 👋</div>
+              ) : (
+                dmMessages.map(m => {
+                  const mine = m.from_handle === session;
+                  return (
+                    <div key={m.id} className={`msg ${mine ? "me" : ""}`}>
+                      <div className="meta">
+                        <span
+                          className="handle"
+                          style={{
+                            backgroundColor: mine ? "transparent" : colorFromHandle(m.from_handle),
+                            color: mine ? "#fff" : "#000"
+                          }}
+                        >
+                          @{m.from_handle}
+                        </span>
+                        <span className="when">
+                          {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <div className="text">{m.text}</div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="compose">
+              <input
+                className="input"
+                type="text"
+                placeholder={`Message @${dmWith}…`}
+                value={dmText}
+                onChange={(e)=> setDmText(e.target.value)}
+                onKeyDown={(e)=> e.key === "Enter" && sendDM()}
+              />
+              <button className="btn" onClick={sendDM} disabled={dmSending}>Send</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
