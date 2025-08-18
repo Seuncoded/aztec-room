@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { generateAztecHandle } from "../lib/aztecName";
 
 
+
 const ROOMS = ["general", "validators", "helpdesk", "18+"];
 
 function pillId(r) {
@@ -22,32 +23,58 @@ const colorFromHandle = (handle) => {
 };
 
 export default function AztecRoom() {
-
-  const [room, setRoom] = useState("general");
-
- 
+  const [room, setRoom] = useState(ROOMS[0]);
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const [typingHandles, setTypingHandles] = useState([]);
-const typingPollRef = useRef(null);
-let typingPingTimer = null; 
-
-  
   const [session, setSession] = useState("");
 
+  
+  const [atBottom, setAtBottom] = useState(true);
+  const [unreadIndex, setUnreadIndex] = useState(null); 
+  
+
  
+  const [typers, setTypers] = useState([]);  
+
+  
   const [dmWith, setDmWith] = useState("");
   const [dmMessages, setDmMessages] = useState([]);
   const [dmText, setDmText] = useState("");
   const [dmSending, setDmSending] = useState(false);
 
-  
   const scrollerRef = useRef(null);
   const pollRef = useRef(null);
   const dmPollRef = useRef(null);
+  const typingPollRef = useRef(null);
+  const typingPingRef = useRef(null);
 
-  
+  const isAtBottom = (el) => {
+  if (!el) return true;
+  const pad = 8; 
+  return el.scrollTop + el.clientHeight >= el.scrollHeight - pad;
+};
+
+useEffect(() => {
+  clearInterval(typingPollRef.current);
+  if (!room) return;
+
+  const tick = async () => {
+    try {
+      const res = await fetch(`/api/typing?room=${encodeURIComponent(room)}`);
+      const j = await res.json();
+      if (res.ok) {
+        
+        setTypers((j.items || []).filter(h => h !== session).slice(0, 4));
+      }
+    } catch {}
+  };
+
+  tick();
+  typingPollRef.current = setInterval(tick, 2000);
+  return () => clearInterval(typingPollRef.current);
+}, [room, session]);  
+
   useEffect(() => {
   if (typeof window === "undefined") return;
   let s = window.sessionStorage.getItem("azr-session");
@@ -60,44 +87,60 @@ let typingPingTimer = null;
 
 
   const fetchRoom = async (r) => {
-    try {
-      const q = new URLSearchParams({ room: r, limit: "100" });
-      const res = await fetch(`/api/messages?${q.toString()}`, { cache: "no-store" });
-      const j = await res.json();
-      if (res.ok && j.items) {
-        setMessages(j.items);
-        requestAnimationFrame(() =>
-          scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "auto" })
-        );
-      } else {
-        console.error("Room fetch error:", j);
+  try {
+    const q = new URLSearchParams({ room: r, limit: "100" });
+    const res = await fetch(`/api/messages?${q.toString()}`, { cache: "no-store" });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error || "fetch failed");
+
+   
+    setMessages(prev => {
+      const oldLen = prev.length;
+      const newList = j.items || [];
+
+
+      if (!isAtBottom(scrollerRef.current) && newList.length > oldLen) {
+        setUnreadIndex(oldLen);
       }
-    } catch (e) {
-      console.error("Room fetch error:", e);
-    }
-  };
+      return newList;
+    });
 
-  const pingTyping = () => {
+    
+    requestAnimationFrame(() => {
+      if (isAtBottom(scrollerRef.current)) {
+        scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "auto" });
+      }
+    });
+  } catch (e) {
+    console.error("room fetch error:", e);
+  }
+};
 
-  if (typingPingTimer) return;
-  typingPingTimer = setTimeout(() => { typingPingTimer = null; }, 1000);
+const pingTyping = () => {
+  if (typingPingRef.current) return; 
+
+  typingPingRef.current = setTimeout(() => {
+    typingPingRef.current = null;   
+  }, 1000);
+
   fetch("/api/typing", {
     method: "POST",
-    headers: { "Content-Type":"application/json" },
-    body: JSON.stringify({ room, handle: session })
-  }).catch(()=>{});
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ room, handle: session }),
+  }).catch(() => {});
 };
 
 const pollTyping = async (r) => {
   try {
     const res = await fetch(`/api/typing?room=${encodeURIComponent(r)}`, { cache: "no-store" });
     const j = await res.json();
-    if (res.ok) setTypingHandles(j.items?.filter(h => h !== session) || []);
-  } catch(e){ /* noop */ }
+  if (res.ok) setTypers((j.items || []).filter(h => h !== session));
+  } catch (e) { /* noop */ }
 };
 
   useEffect(() => {
   if (!room) return;
+  setUnreadIndex(null); 
   fetchRoom(room);
 
   clearInterval(pollRef.current);
@@ -166,6 +209,15 @@ const pollTyping = async (r) => {
       console.error("DM fetch error", e);
     }
   };
+
+  useEffect(() => {
+  const el = scrollerRef.current;
+  if (!el) return;
+
+  const onScroll = () => setAtBottom(isAtBottom(el));
+  el.addEventListener("scroll", onScroll);
+  return () => el.removeEventListener("scroll", onScroll);
+}, [scrollerRef.current]);
 
   useEffect(() => {
     if (!dmWith || !session) return;
@@ -244,9 +296,9 @@ const pollTyping = async (r) => {
             <span className="roomCap">{labelForRoom(room)}</span>
           </div>
 
-{typingHandles.length > 0 && (
+{typers.length > 0 && (
   <div className="typingBar">
-    {typingHandles.slice(0, 3).map((h, i) => (
+    {typers.slice(0, 3).map((h, i) => (
       <span className="typeDot" key={h + i}>@{h}</span>
     ))}
     <span className="typeAnim">
@@ -254,38 +306,89 @@ const pollTyping = async (r) => {
     </span>
   </div>
 )}
-          <div className="scroll" ref={scrollerRef}>
-            {messages.length === 0 ? (
-              <div className="empty">No messages yet. Say hi 👋</div>
-            ) : (
-              messages.map((m) => {
-                const isMine = m.handle === session;
-                return (
-                  <div className={`msg ${isMine ? "me" : ""}`} key={m.id}>
-                    <div className="meta">
-                      <span
-                        className="handle"
-                        onClick={() => openDM(m.handle)}
-                        style={{
-                          backgroundColor: isMine ? "transparent" : colorFromHandle(m.handle),
-                          color: isMine ? "#fff" : "#000",
-                          padding: "2px 6px",
-                          borderRadius: "6px",
-                          fontSize: "0.85rem",
-                          fontWeight: "600",
-                          cursor: "pointer"
-                        }}
-                      >
-                        @{m.handle || "anon"}
-                      </span>
-                      <span className="when">{niceTime(m.created_at)}</span>
-                    </div>
-                    <div className="text">{m.text}</div>
-                  </div>
-                );
-              })
-            )}
+         <div className="scroll" ref={scrollerRef}>
+  {messages.length === 0 ? (
+    <div className="empty">No messages yet. Say hi 👋</div>
+  ) : (
+    messages.map((m, i) => {
+      const prev = i > 0 ? messages[i - 1] : null;
+      const firstOfDay = isNewDay(prev, m);
+      const groupBreak = isGroupBreak(prev, m);
+      const isMine = m.handle === session;
+
+      return (
+        <div key={m.id || i}>
+          {/* Day/time sticky header */}
+          {firstOfDay && (
+            <div className="timeHeader">{niceDayTime(m.created_at)}</div>
+          )}
+
+          {}
+          {unreadIndex !== null && i === unreadIndex && (
+            <div className="unreadDivider">
+              <span>Unread</span>
+            </div>
+          )}
+
+          <div className={`msg ${isMine ? "me" : ""} ${groupBreak ? "start" : "cont"}`}>
+  {groupBreak && (
+    <div className="meta">
+      <span
+        className="handle"
+        onClick={() => openDM(m.handle)}
+        style={{
+          backgroundColor: isMine ? "transparent" : colorFromHandle(m.handle),
+          color: isMine ? "#fff" : "#000",
+          cursor: "pointer",
+        }}
+      >
+        @{m.handle || "anon"}
+      </span>
+
+      {}
+      <div className="metaRight">
+        {!isMine && <span className="when">{niceTime(m.created_at)}</span>}
+        <div className="msgIcons">
+          {!isMine && (
+            <button
+              className="msgIcon icon-inbox"
+              title={`DM @${m.handle}`}
+              onClick={() => openDM(m.handle)}
+            >
+              ✉️
+            </button>
+          )}
+
+        </div>
+      </div>
+    </div>
+  )}
+
+  <div className="text">{m.text}</div>
+
+
+            {/* hover actions */}
+            <div class="msg mine" className="msgActions">
+              <button onClick={() => openDM(m.handle)} title="DM">✉️</button>
+            </div>
           </div>
+        </div>
+      );
+    })
+  )}
+</div>
+
+
+{typers.length > 0 && (
+  <div className="typingRibbon">
+    <span className="dots">
+      <i></i><i></i><i></i>
+    </span>
+    <span className="who">
+      {typers.map(h => `@${h}`).join(" , ")} typing…
+    </span>
+  </div>
+)}
 
           <div className="compose">
          <input
@@ -293,7 +396,15 @@ const pollTyping = async (r) => {
   type="text"
   placeholder="Type a message…"
   value={text}
-  onChange={(e)=> setText(e.target.value)}
+  onChange={(e) => {
+  setText(e.target.value);
+
+  fetch("/api/typing", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ room, handle: session })
+  }).catch(()=>{});
+}}
   onInput={pingTyping}              
   onKeyDown={(e)=> e.key === "Enter" && onSend()}
 />
@@ -314,6 +425,7 @@ const pollTyping = async (r) => {
           </a>
         </footer>
       </div>
+
 
       {/* DM modal */}
       {dmWith && (
@@ -369,4 +481,37 @@ const pollTyping = async (r) => {
       )}
     </div>
   );
+  
 }
+const jumpToLatest = () => {
+  setUnreadIndex(null);
+  requestAnimationFrame(() => {
+    scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
+  });
+};
+
+
+const niceDayTime = (iso) => {
+  const d = new Date(iso);
+  const today = new Date();
+  const isToday = d.toDateString() === today.toDateString();
+  const hh = d.getHours().toString().padStart(2,"0");
+  const mm = d.getMinutes().toString().padStart(2,"0");
+  const datePart = isToday ? "Today" : d.toLocaleDateString(undefined, { month:"short", day:"numeric" });
+  return `${datePart} • ${hh}:${mm}`;
+};
+
+
+const isGroupBreak = (prev, curr) => {
+  if (!prev) return true;
+  if (prev.handle !== curr.handle) return true;
+  const dt = Math.abs(new Date(curr.created_at) - new Date(prev.created_at));
+  return dt > 3 * 60 * 1000;
+};
+
+
+const isNewDay = (prev, curr) => {
+  if (!prev) return true;
+  const a = new Date(prev.created_at), b = new Date(curr.created_at);
+  return a.toDateString() !== b.toDateString();
+};
